@@ -31,7 +31,7 @@ jobs:
       - name: Compile detailed native SKP builder
         shell: pwsh
         run: |
-          cmd /c "cl /nologo /EHsc /std:c++17 /I sdk\headers /I skp_build skp_build\build_bano_detallado.cpp /Fe:build_bano_detallado.exe /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib > compile.log 2>&1"
+          cmd /c "cl /nologo /EHsc /std:c++17 /DNOMINMAX /I sdk\headers /I skp_build skp_build\build_bano_detallado.cpp /Fe:build_bano_detallado.exe /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib > compile.log 2>&1"
           Get-Content compile.log
           if ($LASTEXITCODE -ne 0) { throw "Compilacion fallida" }
 
