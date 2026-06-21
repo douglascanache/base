@@ -1,4 +1,4 @@
-name: Build detailed bathroom SKP
+name: Build bathroom construction sequence
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-skp:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout model source
         uses: actions/checkout@v4
@@ -28,31 +28,79 @@ jobs:
         with:
           arch: x64
 
-      - name: Compile detailed native SKP builder
+      - name: Compile sequence builder
         shell: pwsh
         run: |
-          cmd /c "cl /nologo /EHsc /std:c++17 /DNOMINMAX /I sdk\headers /I skp_build skp_build\build_bano_detallado.cpp /Fe:build_bano_detallado.exe /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib > compile.log 2>&1"
+          cmd /c "cl /nologo /EHsc /std:c++17 /DNOMINMAX /I sdk\headers /I skp_build skp_build\build_bano_por_etapas.cpp /Fe:build_bano_por_etapas.exe /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib > compile.log 2>&1"
           Get-Content compile.log
           if ($LASTEXITCODE -ne 0) { throw "Compilacion fallida" }
 
-      - name: Generate detailed SketchUp file
+      - name: Generate master and stage files
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path output -Force | Out-Null
           Copy-Item sdk\binaries\sketchup\x64\SketchUpAPI.dll . -Force
           Copy-Item sdk\binaries\sketchup\x64\SketchUpCommonPreferences.dll . -Force
-          .\build_bano_detallado.exe output\bano_1x2_detallado.skp
-          if ($LASTEXITCODE -ne 0) { throw "El generador SKP termino con codigo $LASTEXITCODE" }
-          $file = Get-Item output\bano_1x2_detallado.skp
-          if ($file.Length -lt 10000) { throw "El archivo SKP generado es demasiado pequeno" }
-          $file | Format-List Name,Length,FullName
+          .\build_bano_por_etapas.exe output\bano_secuencia_constructiva_completa.skp 0
+          if ($LASTEXITCODE -ne 0) { throw "No se genero el archivo maestro" }
+          $names = @(
+            "01_fundaciones",
+            "02_riostras_y_anclajes",
+            "03_alcantarillado_enterrado",
+            "04_radier_y_base_piso",
+            "05_estructura_metalica",
+            "06_entrepiso_superior",
+            "07_perfileria_muros",
+            "08_instalaciones_interiores",
+            "09_revestimientos",
+            "10_artefactos_y_terminaciones",
+            "11_modelo_final"
+          )
+          for ($i = 1; $i -le 11; $i++) {
+            $num = $i.ToString("00")
+            $name = $names[$i-1]
+            .\build_bano_por_etapas.exe "output\paso_${num}_${name}.skp" $i
+            if ($LASTEXITCODE -ne 0) { throw "No se genero la etapa $i" }
+          }
+          @"
+          ARCHIVO PRINCIPAL
+          =================
+          bano_secuencia_constructiva_completa.skp
 
-      - name: Upload detailed SKP
-        if: success()
+          El archivo principal contiene las 11 etapas distribuidas en una cuadrícula.
+          Cada etapa está en una Etiqueta/Tag independiente para poder ocultarla o mostrarla.
+
+          También se incluyen 11 archivos separados, uno por cada etapa acumulativa.
+
+          ORDEN DE LAS ETAPAS
+          1. Fundaciones
+          2. Vigas de riostra y anclajes
+          3. Alcantarillado enterrado
+          4. Radier y base del piso
+          5. Estructura metálica
+          6. Entrepiso superior
+          7. Perfilería de muros
+          8. Instalaciones interiores
+          9. Revestimientos
+          10. Artefactos y terminaciones
+          11. Modelo final
+          "@ | Set-Content output\LEEME.txt -Encoding UTF8
+          Compress-Archive -Path output\* -DestinationPath bano_por_etapas_sketchup.zip -Force
+          Get-ChildItem output | Format-Table Name,Length
+
+      - name: Upload master SKP
         uses: actions/upload-artifact@v4
         with:
-          name: bano-1x2-detallado-skp
-          path: output/bano_1x2_detallado.skp
+          name: bano-secuencia-constructiva-skp
+          path: output/bano_secuencia_constructiva_completa.skp
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload complete stage package
+        uses: actions/upload-artifact@v4
+        with:
+          name: bano-por-etapas-completo
+          path: bano_por_etapas_sketchup.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -60,7 +108,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: compiler-log
+          name: compiler-log-sequence
           path: compile.log
           if-no-files-found: ignore
           retention-days: 1
