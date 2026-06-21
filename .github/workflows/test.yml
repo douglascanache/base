@@ -28,6 +28,14 @@ jobs:
         with:
           arch: x64
 
+      - name: Adjust SDK initialization call
+        shell: pwsh
+        run: |
+          $path = "skp_build\build_bano_skp.cpp"
+          $source = Get-Content $path -Raw
+          $source = $source.Replace('if (!Check(SUInitialize(), "SUInitialize")) return 1;', 'SUInitialize();')
+          Set-Content -Path $path -Value $source -Encoding utf8
+
       - name: Compile native SKP builder
         shell: cmd
         run: >-
