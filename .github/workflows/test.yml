@@ -1,0 +1,11 @@
+name: Temporary build
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python skp_build/generate_bano_obj.py
