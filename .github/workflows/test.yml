@@ -1,11 +1,58 @@
-name: Temporary build
+name: Build bathroom SKP
+
 on:
-  workflow_dispatch:
-  push:
+  pull_request:
     branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
-  test:
+  build-skp:
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - run: python skp_build/generate_bano_obj.py
+      - name: Checkout model source
+        uses: actions/checkout@v4
+
+      - name: Checkout SketchUp SDK
+        uses: actions/checkout@v4
+        with:
+          repository: Vaalasar/SketchUp-SDK-2024
+          ref: main
+          path: sdk
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Compile native SKP builder
+        shell: cmd
+        run: >-
+          cl /nologo /EHsc /std:c++17
+          /I sdk\headers
+          skp_build\build_bano_skp.cpp
+          /Fe:build_bano_skp.exe
+          /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib
+
+      - name: Generate native SketchUp file
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path output -Force | Out-Null
+          Copy-Item sdk\binaries\sketchup\x64\SketchUpAPI.dll . -Force
+          Copy-Item sdk\binaries\sketchup\x64\SketchUpCommonPreferences.dll . -Force
+          .\build_bano_skp.exe output\bano_1x2_preliminar.skp
+          if ($LASTEXITCODE -ne 0) { throw "El generador SKP termino con codigo $LASTEXITCODE" }
+          $file = Get-Item output\bano_1x2_preliminar.skp
+          if ($file.Length -lt 1000) { throw "El archivo SKP generado es demasiado pequeno" }
+          $file | Format-List Name,Length,FullName
+
+      - name: Upload SKP
+        uses: actions/upload-artifact@v4
+        with:
+          name: bano-1x2-skp
+          path: output/bano_1x2_preliminar.skp
+          if-no-files-found: error
+          retention-days: 1
