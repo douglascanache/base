@@ -29,13 +29,11 @@ jobs:
           arch: x64
 
       - name: Compile detailed native SKP builder
-        shell: cmd
-        run: >-
-          cl /nologo /EHsc /std:c++17
-          /I sdk\headers /I skp_build
-          skp_build\build_bano_detallado.cpp
-          /Fe:build_bano_detallado.exe
-          /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib
+        shell: pwsh
+        run: |
+          cmd /c "cl /nologo /EHsc /std:c++17 /I sdk\headers /I skp_build skp_build\build_bano_detallado.cpp /Fe:build_bano_detallado.exe /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib > compile.log 2>&1"
+          Get-Content compile.log
+          if ($LASTEXITCODE -ne 0) { throw "Compilacion fallida" }
 
       - name: Generate detailed SketchUp file
         shell: pwsh
@@ -50,9 +48,19 @@ jobs:
           $file | Format-List Name,Length,FullName
 
       - name: Upload detailed SKP
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: bano-1x2-detallado-skp
           path: output/bano_1x2_detallado.skp
           if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload compiler log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiler-log
+          path: compile.log
+          if-no-files-found: ignore
           retention-days: 1
