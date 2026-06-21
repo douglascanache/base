@@ -1,4 +1,4 @@
-name: Build bathroom SKP
+name: Build detailed bathroom SKP
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-skp:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout model source
         uses: actions/checkout@v4
@@ -28,39 +28,31 @@ jobs:
         with:
           arch: x64
 
-      - name: Adjust SDK initialization call
-        shell: pwsh
-        run: |
-          $path = "skp_build\build_bano_skp.cpp"
-          $source = Get-Content $path -Raw
-          $source = $source.Replace('if (!Check(SUInitialize(), "SUInitialize")) return 1;', 'SUInitialize();')
-          Set-Content -Path $path -Value $source -Encoding utf8
-
-      - name: Compile native SKP builder
+      - name: Compile detailed native SKP builder
         shell: cmd
         run: >-
           cl /nologo /EHsc /std:c++17
-          /I sdk\headers
-          skp_build\build_bano_skp.cpp
-          /Fe:build_bano_skp.exe
+          /I sdk\headers /I skp_build
+          skp_build\build_bano_detallado.cpp
+          /Fe:build_bano_detallado.exe
           /link /LIBPATH:sdk\binaries\sketchup\x64 SketchUpAPI.lib
 
-      - name: Generate native SketchUp file
+      - name: Generate detailed SketchUp file
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path output -Force | Out-Null
           Copy-Item sdk\binaries\sketchup\x64\SketchUpAPI.dll . -Force
           Copy-Item sdk\binaries\sketchup\x64\SketchUpCommonPreferences.dll . -Force
-          .\build_bano_skp.exe output\bano_1x2_preliminar.skp
+          .\build_bano_detallado.exe output\bano_1x2_detallado.skp
           if ($LASTEXITCODE -ne 0) { throw "El generador SKP termino con codigo $LASTEXITCODE" }
-          $file = Get-Item output\bano_1x2_preliminar.skp
-          if ($file.Length -lt 1000) { throw "El archivo SKP generado es demasiado pequeno" }
+          $file = Get-Item output\bano_1x2_detallado.skp
+          if ($file.Length -lt 10000) { throw "El archivo SKP generado es demasiado pequeno" }
           $file | Format-List Name,Length,FullName
 
-      - name: Upload SKP
+      - name: Upload detailed SKP
         uses: actions/upload-artifact@v4
         with:
-          name: bano-1x2-skp
-          path: output/bano_1x2_preliminar.skp
+          name: bano-1x2-detallado-skp
+          path: output/bano_1x2_detallado.skp
           if-no-files-found: error
           retention-days: 1
